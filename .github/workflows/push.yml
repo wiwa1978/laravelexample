@@ -34,9 +34,12 @@ jobs:
   deploy:
     name: Deploy to Vapor
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     needs:
       - laravel-tests
+    env:
+      APP_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      VAPOR_API_TOKEN: ${{ secrets.VAPOR_API_TOKEN }}
     steps:
       - name: Check out code
         uses: actions/checkout@v2
@@ -44,11 +47,12 @@ jobs:
         run: composer validate
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-interaction --no-suggest --no-dev
+      - name: Enable maintenance mode
+        run: ./vendor/bin/vapor down staging
       - name: Deploy code
-        run: ./vendor/bin/vapor deploy staging --commit="${{ github.sha }}"
-        env:
-          APP_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-          VAPOR_API_TOKEN: ${{ secrets.VAPOR_API_TOKEN }}
+        run: ./vendor/bin/vapor deploy ${{ env.APP_ENV }}  --commit="${{ github.sha }}"
+      - name: Disable maintenance mode
+        run: ./vendor/bin/vapor up staging
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         if: failure()
